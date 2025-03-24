@@ -8,7 +8,7 @@ class GradientButton extends StatelessWidget {
   final String text;
   
   /// Función que se ejecuta al presionar el botón
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   
   /// Colores para el gradiente del botón
   final List<Color> gradientColors;
@@ -33,6 +33,9 @@ class GradientButton extends StatelessWidget {
   
   /// Espacio entre el icono y el texto
   final double iconSpacing;
+  
+  /// Indica si el botón está en estado de carga
+  final bool isLoading;
 
   /// Constructor del botón con gradiente
   const GradientButton({
@@ -50,6 +53,7 @@ class GradientButton extends StatelessWidget {
     this.height = 52.0,
     this.icon,
     this.iconSpacing = 8.0,
+    this.isLoading = false,
   });
 
   @override
@@ -70,13 +74,15 @@ class GradientButton extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onPressed,
+          onTap: isLoading ? null : onPressed,
           borderRadius: BorderRadius.circular(borderRadius),
           child: Ink(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(borderRadius),
               gradient: LinearGradient(
-                colors: gradientColors,
+                colors: isLoading 
+                    ? [Colors.grey.shade400, Colors.grey.shade600] 
+                    : gradientColors,
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -84,30 +90,39 @@ class GradientButton extends StatelessWidget {
             child: Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (icon != null) ...[
-                      Icon(
-                        icon,
-                        color: Colors.white,
-                        size: fontSize * 1.2,
-                      ),
-                      SizedBox(width: iconSpacing),
-                    ],
-                    Text(
-                      text,
-                      style: GoogleFonts.montserrat(
-                        textStyle: TextStyle(
-                          color: Colors.white,
-                          fontSize: fontSize,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
+                child: isLoading 
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (icon != null) ...[
+                            Icon(
+                              icon,
+                              color: Colors.white,
+                              size: fontSize * 1.2,
+                            ),
+                            SizedBox(width: iconSpacing),
+                          ],
+                          Text(
+                            text,
+                            style: GoogleFonts.montserrat(
+                              textStyle: TextStyle(
+                                color: Colors.white,
+                                fontSize: fontSize,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
               ),
             ),
           ),

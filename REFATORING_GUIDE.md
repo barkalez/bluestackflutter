@@ -16,6 +16,7 @@ Refactorizar el código en Flutter de manera **incremental** siguiendo buenas pr
 9. **Utilizar logger para depuración**: Utilizar logger para crear mensajes de depuración en la console debug.
 10. **Utilizar flutter_form_builder**: Utilizar flutter_form_builder para todos los formularios que vayamos creando.
 11. **Utiliza routes para la navegación entre pantallas**: Utiliza routes para la navegación entre pantallas.
+12. **'withOpacity' esta obsoleto usa .withValues()**
 
 ## Proceso de validación  
 1. La IA propone un cambio y explica el objetivo.  

@@ -101,32 +101,81 @@ class HomeScreenContent extends StatelessWidget {
   Widget _buildActiveProfileIndicator(AppState appState) {
     final profileName = appState.activeProfile?.name ?? '';
     
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.green.withValues(alpha: 25),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.green.withValues(alpha: 120)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.check_circle,
-            color: Colors.green,
-            size: 22,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Indicador de perfil activo
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.green.withAlpha(25),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: Colors.green.withAlpha(120)),
           ),
-          const SizedBox(width: 8),
-          Text(
-            'Perfil activo: $profileName',
-            style: const TextStyle(
-              color: Colors.green,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.check_circle,
+                color: Colors.green,
+                size: 22,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Perfil activo: $profileName',
+                style: const TextStyle(
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Indicador de dispositivo conectado (si existe)
+        if (appState.isConnected && appState.connectedDeviceName != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.blue.withAlpha(25),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: Colors.blue.withAlpha(120)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.bluetooth_connected,
+                  color: Colors.blue,
+                  size: 22,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Conectado a: ${appState.connectedDeviceName}',
+                  style: const TextStyle(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18, color: Colors.blue),
+                  onPressed: () {
+                    appState.disconnectFromDevice();
+                  },
+                  tooltip: 'Desconectar',
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(),
+                  splashRadius: 20,
+                ),
+              ],
             ),
           ),
         ],
-      ),
+      ],
     );
   }
 } 

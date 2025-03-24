@@ -16,6 +16,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// Título opcional, si es null se usará el nombre de la app
   final String? title;
   
+  /// Lista de acciones para mostrar en la barra de herramientas
+  final List<Widget>? actions;
+
   const CustomAppBar({
     super.key,
     this.height = kToolbarHeight + 25.0,
@@ -25,6 +28,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     ],
     this.shadowColor = const Color(0x66000000),
     this.title,
+    this.actions,
   });
 
   @override
@@ -52,25 +56,41 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.only(bottom: 12.0),
-          child: Center(
-            child: Text(
-              title ?? AppConstants.appName,
-              style: GoogleFonts.montserrat(
-                textStyle: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.8,
-                  shadows: [
-                    Shadow(
-                      offset: Offset(0, 1),
-                      blurRadius: 3.0,
-                      color: Color(0x99000000),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Título centrado
+              Center(
+                child: Text(
+                  title ?? AppConstants.appName,
+                  style: GoogleFonts.montserrat(
+                    textStyle: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.8,
+                      shadows: [
+                        Shadow(
+                          offset: Offset(0, 1),
+                          blurRadius: 3.0,
+                          color: Color(0x99000000),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              
+              // Acciones a la derecha
+              if (actions != null && actions!.isNotEmpty)
+                Positioned(
+                  right: 4.0,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: actions!,
+                  ),
+                ),
+            ],
           ),
         ),
       ),

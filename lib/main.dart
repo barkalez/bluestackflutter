@@ -9,6 +9,8 @@ import 'presentation/screens/home_screen.dart';
 import 'presentation/screens/new_profile_screen.dart';
 import 'presentation/screens/list_profile_screen.dart';
 import 'presentation/screens/profile_detail_screen.dart';
+import 'presentation/screens/bluetooth_scan_screen.dart';
+import 'presentation/screens/control_home_screen.dart';
 import 'state/app_state.dart';
 
 final Logger logger = LoggerConfig.logger;
@@ -42,6 +44,8 @@ class MyApp extends StatelessWidget {
           AppConstants.newProfileRoute: (context) => const NewProfileScreen(),
           AppConstants.listProfilesRoute: (context) => const ListProfileScreen(),
           ProfileDetailScreen.routeName: (context) => const ProfileDetailScreen(),
+          BluetoothScanScreen.routeName: (context) => const BluetoothScanScreen(),
+          AppConstants.controlRoute: (context) => const ControlHomeScreen(),
         },
       ),
     );
