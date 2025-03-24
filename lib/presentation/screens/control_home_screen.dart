@@ -5,7 +5,6 @@ import 'dart:async';
 import '../../core/logger_config.dart';
 import '../../core/constants.dart';
 import '../../state/bluetooth_provider.dart';
-import '../widgets/common/custom_app_bar.dart';
 
 /// Pantalla principal de control cuando el dispositivo está conectado
 class ControlHomeScreen extends StatefulWidget {
@@ -21,9 +20,6 @@ class ControlHomeScreen extends StatefulWidget {
 class _ControlHomeScreenState extends State<ControlHomeScreen> {
   static const _className = 'ControlHomeScreen';
   final _logger = LoggerConfig.logger;
-  
-  // Controlador para enviar comandos
-  final TextEditingController _commandController = TextEditingController();
   
   // Buffer para almacenar datos recibidos
   final List<String> _receivedData = [];
@@ -44,10 +40,6 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
   @override
   void dispose() {
     _logger.d('$_className: Liberando recursos');
-    
-    // Liberar controlador de texto
-    _commandController.dispose();
-    
     _logger.d('$_className: Recursos liberados correctamente');
     super.dispose();
   }
@@ -101,108 +93,85 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
     }
   }
   
-  /// Envía un comando al dispositivo Bluetooth
-  Future<void> _sendCommand(String command) async {
-    if (command.isEmpty) {
-      return;
-    }
+  /// Maneja la conexión/desconexión real del Bluetooth
+  Future<void> _toggleBluetoothConnection() async {
+    final bluetoothProvider = Provider.of<BluetoothProvider>(context, listen: false);
     
-    try {
-      final bluetoothProvider = Provider.of<BluetoothProvider>(context, listen: false);
-      
-      if (!bluetoothProvider.isConnected) {
-        _logger.w('$_className: No hay conexión activa para enviar comandos');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No hay conexión activa'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-      
-      _logger.d('$_className: Enviando comando: $command');
-      
-      // Enviar el comando a través del provider
-      bool success = await bluetoothProvider.sendCommand(command);
-      
-      if (success) {
-        _logger.d('$_className: Comando enviado correctamente');
-        
-        // Limpiar el campo de texto
-        _commandController.clear();
-        
-        // Registrar el comando enviado en la lista de datos
-        if (mounted) {
-          setState(() {
-            _receivedData.add('>> $command');
-          });
-        }
-      } else {
-        _logger.e('$_className: Error al enviar comando');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error al enviar el comando'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      _logger.e('$_className: Error al enviar comando: $e');
+    if (bluetoothProvider.isConnected) {
+      // Si está conectado, desconectar realmente
+      _logger.d('$_className: Desconectando dispositivo Bluetooth');
+      await bluetoothProvider.disconnectDevice();
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al enviar: $e'),
-            backgroundColor: Colors.red,
+          const SnackBar(
+            content: Text('Bluetooth desconectado'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 1),
           ),
         );
+      }
+    } else if (bluetoothProvider.connectedDeviceAddress != null) {
+      // Si está desconectado pero tenemos la dirección del último dispositivo, reconectar
+      _logger.d('$_className: Intentando reconectar al último dispositivo');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Intentando reconectar...'),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+      
+      // Intentar reconectar al último dispositivo
+      try {
+        final reconnected = await bluetoothProvider.reconnectLastDevice();
+        
+        if (mounted) {
+          if (reconnected) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Reconectado exitosamente'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 1),
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No se pudo reconectar. Intente desde la pantalla de escaneo.'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        _logger.e('$_className: Error al reconectar: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } else {
+      // Si no hay dispositivo previo, ir a la pantalla de escaneo
+      _logger.d('$_className: No hay dispositivo anterior, redirigiendo a pantalla de escaneo');
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, AppConstants.connectRoute);
       }
     }
   }
   
-  /// Desconecta del dispositivo Bluetooth
-  Future<void> _disconnectDevice() async {
-    _logger.d('$_className: Iniciando desconexión del dispositivo');
-    
-    try {
-      final bluetoothProvider = Provider.of<BluetoothProvider>(context, listen: false);
-      
-      // Desconectar utilizando el provider
-      await bluetoothProvider.disconnectDevice();
-      
-      // Actualizar el estado local
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Desconectado del dispositivo'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        
-        // Navegar a la pantalla anterior
-        Future.microtask(() {
-          if (mounted) {
-            Navigator.of(context).pop();
-          }
-        });
-      }
-    } catch (e) {
-      _logger.e('$_className: Error al desconectar: $e');
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al desconectar: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+  /// Navega a la pantalla de inicio
+  void _navigateToHome() {
+    _logger.d('$_className: Navegando a la pantalla de inicio');
+    Navigator.pushReplacementNamed(context, AppConstants.homeRoute);
   }
   
   @override
@@ -210,60 +179,78 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
     final bluetoothProvider = Provider.of<BluetoothProvider>(context);
     
     return Scaffold(
-      appBar: CustomAppBar(
-        title: 'Control HC-05',
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.bluetooth_disabled),
-            tooltip: 'Desconectar',
-            onPressed: _disconnectDevice,
-          ),
-        ],
-      ),
-      body: _buildBody(bluetoothProvider),
-    );
-  }
-  
-  /// Construye el cuerpo principal de la pantalla
-  Widget _buildBody(BluetoothProvider bluetoothProvider) {
-    return Column(
-      children: [
-        _buildStatusBar(bluetoothProvider),
-        Expanded(
-          child: _buildDataView(),
-        ),
-        _buildCommandInput(bluetoothProvider),
-      ],
-    );
-  }
-  
-  /// Construye la barra de estado de conexión
-  Widget _buildStatusBar(BluetoothProvider bluetoothProvider) {
-    Color statusColor = bluetoothProvider.isConnected ? Colors.green : Colors.red;
-    String statusMessage = bluetoothProvider.isConnected 
-        ? 'Conectado a ${bluetoothProvider.connectedDeviceName ?? "dispositivo"}'
-        : 'Sin conexión';
-    
-    return Container(
-      padding: const EdgeInsets.all(8.0),
-      color: statusColor.withAlpha(25),
-      child: Row(
-        children: [
-          Icon(
-            bluetoothProvider.isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
-            color: statusColor,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              statusMessage,
-              style: TextStyle(
-                color: statusColor,
-                fontWeight: FontWeight.bold,
-              ),
+      appBar: AppBar(
+        title: const Center(
+          child: Text(
+            'Bluestack',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
             ),
           ),
+        ),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color(0xFF2196F3),  // Azul primario
+                Color(0xFF0D47A1),  // Azul oscuro
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+        leading: _buildHomeButton(),
+        actions: [
+          _buildBluetoothButton(bluetoothProvider),
         ],
+      ),
+      body: _buildDataView(),
+    );
+  }
+  
+  /// Construye el botón de Bluetooth
+  Widget _buildBluetoothButton(BluetoothProvider bluetoothProvider) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: bluetoothProvider.isConnected ? Colors.green : Colors.orange,
+          shape: BoxShape.circle,
+        ),
+        child: IconButton(
+          icon: const Icon(Icons.bluetooth, color: Colors.white),
+          tooltip: bluetoothProvider.isConnected ? 'Desconectar' : 'Conectar',
+          padding: EdgeInsets.zero,
+          iconSize: 20,
+          onPressed: _toggleBluetoothConnection,
+        ),
+      ),
+    );
+  }
+  
+  /// Construye el botón de inicio
+  Widget _buildHomeButton() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: const BoxDecoration(
+          color: Colors.lightBlue,
+          shape: BoxShape.circle,
+        ),
+        child: IconButton(
+          icon: const Icon(Icons.home, color: Colors.white),
+          tooltip: 'Ir a inicio',
+          padding: EdgeInsets.zero,
+          iconSize: 20,
+          onPressed: _navigateToHome,
+        ),
       ),
     );
   }
@@ -273,7 +260,7 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
     if (_receivedData.isEmpty) {
       return const Center(
         child: Text(
-          'Esperando datos del dispositivo...',
+          'Panel de control Bluestack',
           style: TextStyle(
             fontSize: 16,
             color: Colors.grey,
@@ -299,40 +286,6 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
             ),
           );
         },
-      ),
-    );
-  }
-  
-  /// Construye el campo para enviar comandos
-  Widget _buildCommandInput(BluetoothProvider bluetoothProvider) {
-    return Container(
-      padding: const EdgeInsets.all(8.0),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: Colors.grey.withAlpha(128)),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _commandController,
-              decoration: const InputDecoration(
-                hintText: 'Escribe un comando...',
-                border: OutlineInputBorder(),
-              ),
-              enabled: bluetoothProvider.isConnected,
-              onSubmitted: _sendCommand,
-            ),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: bluetoothProvider.isConnected
-                ? () => _sendCommand(_commandController.text)
-                : null,
-            child: const Text('Enviar'),
-          ),
-        ],
       ),
     );
   }

@@ -480,6 +480,31 @@ class BluetoothProvider with ChangeNotifier {
     await _bluetoothService.openBluetoothSettings();
   }
   
+  /// Intenta reconectar al último dispositivo conectado
+  Future<bool> reconnectLastDevice() async {
+    _logger.d('$_className: Intentando reconectar al último dispositivo');
+    
+    if (connectedDeviceAddress == null) {
+      _logger.w('$_className: No hay dirección de dispositivo anterior');
+      return false;
+    }
+    
+    try {
+      // Crear un dispositivo con la información guardada
+      final device = BluetoothDevice(
+        name: connectedDeviceName ?? 'Dispositivo previamente conectado',
+        address: connectedDeviceAddress!,
+      );
+      
+      // Intentar conectar
+      final connection = await connectToDevice(device);
+      return connection != null;
+    } catch (e) {
+      _logger.e('$_className: Error al reconectar: $e');
+      return false;
+    }
+  }
+  
   @override
   void dispose() {
     _dataSubscription?.cancel();

@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 import '../../core/logger_config.dart';
 import '../../state/app_state.dart';
+import '../../state/bluetooth_provider.dart';
 import '../widgets/common/custom_app_bar.dart';
 import '../../core/constants.dart';
 import '../widgets/home/home_buttons.dart';
 import '../widgets/home/profile_info_message.dart';
+import '../widgets/common/buttons/gradient_button.dart';
 
 /// Pantalla de inicio de la aplicación.
 /// Es la primera pantalla que ve el usuario al iniciar la app.
@@ -50,132 +52,144 @@ class HomeScreenContent extends StatelessWidget {
   /// Constantes de diseño para mejorar la consistencia visual
   static const double verticalSpacing = 20.0;
   static const double extraSpacing = 40.0;
+  static const double _buttonWidth = 0.5; // 50% del ancho de pantalla
+  static const List<Color> _controlButtonGradient = [
+    Color(0xFF9C27B0), // Morado
+    Color(0xFF4A148C), // Morado oscuro
+  ];
   
   const HomeScreenContent({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AppState>(
-      builder: (_, appState, __) {
-        final hasProfiles = appState.profileNames.isNotEmpty;
-        
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CreateProfileButton(),
+    // Obtenemos el BluetoothProvider para escuchar específicamente los cambios de conexión
+    final bluetoothProvider = Provider.of<BluetoothProvider>(context);
+    final appState = Provider.of<AppState>(context);
+    
+    // Variables derivadas del estado
+    final hasProfiles = appState.profileNames.isNotEmpty;
+    final hasActiveProfile = appState.hasActiveProfile;
+    final isConnected = bluetoothProvider.isConnected;
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CreateProfileButton(),
+          const SizedBox(height: verticalSpacing),
+          
+          if (hasProfiles) ...[
+            const LoadProfileButton(),
+            const SizedBox(height: verticalSpacing),
+            
+            // Si el dispositivo está conectado, mostrar el botón de control
+            // Al usar directamente bluetoothProvider.isConnected nos aseguramos que
+            // este bloque se actualice cuando cambie el estado de conexión
+            if (isConnected) ...[
+              GradientButton(
+                text: 'Control',
+                onPressed: () => _navigateToControlScreen(context),
+                icon: Icons.gamepad,
+                width: screenWidth * _buttonWidth,
+                gradientColors: _controlButtonGradient,
+              ),
               const SizedBox(height: verticalSpacing),
-              
-              if (hasProfiles) ...[
-                const LoadProfileButton(),
-                const SizedBox(height: verticalSpacing),
-                ProfileInfoMessage(profileCount: appState.profileNames.length),
-              ],
-              
-              // Mostrar el indicador de perfil activo y los botones cuando hay un perfil activo
-              if (appState.hasActiveProfile) ...[
-                const SizedBox(height: verticalSpacing),
-                _buildActiveProfileIndicator(appState),
-                const SizedBox(height: extraSpacing),
-                const ConnectButton(),
-                const SizedBox(height: 16),
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.pushNamed(context, AppConstants.profileDetailRoute);
-                  },
-                  icon: const Icon(Icons.info_outline),
-                  label: const Text('Ver detalles del perfil'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.blue,
-                  ),
-                ),
-              ],
             ],
-          ),
-        );
-      },
+            
+            // Mostrar información de perfiles solo si no hay un perfil activo
+            if (!hasActiveProfile)
+              ProfileInfoMessage(profileCount: appState.profileNames.length),
+          ],
+          
+          // Mostrar el indicador de perfil activo y los botones cuando hay un perfil activo
+          if (hasActiveProfile) ...[
+            const SizedBox(height: verticalSpacing),
+            // Haciendo clickeable el indicador de perfil activo
+            GestureDetector(
+              onTap: () => Navigator.pushNamed(context, AppConstants.profileDetailRoute),
+              child: _buildActiveProfileIndicator(appState),
+            ),
+            
+            const SizedBox(height: extraSpacing),
+            // Botón de conectar/desconectar que ahora operará con el bluetoothProvider
+            _buildConnectButton(context, bluetoothProvider),
+          ],
+        ],
+      ),
     );
   }
+  
+  /// Construye el botón de conexión basado en el estado actual de bluetoothProvider
+  Widget _buildConnectButton(BuildContext context, BluetoothProvider bluetoothProvider) {
+    final isConnected = bluetoothProvider.isConnected;
+    
+    // Definir los colores para conectado y desconectado
+    final List<Color> connectColors = [
+      const Color(0xFF2196F3),  // Azul claro
+      const Color(0xFF0D47A1),  // Azul oscuro
+    ];
+    
+    final List<Color> disconnectColors = [
+      const Color(0xFFF44336),  // Rojo claro
+      const Color(0xFFB71C1C),  // Rojo oscuro
+    ];
+    
+    return GradientButton(
+      text: isConnected ? 'Desconectar' : 'Conectar',
+      onPressed: () {
+        if (isConnected) {
+          bluetoothProvider.disconnectDevice();
+        } else {
+          Navigator.pushNamed(context, AppConstants.connectRoute);
+        }
+      },
+      icon: isConnected ? Icons.link_off : Icons.link,
+      gradientColors: isConnected ? disconnectColors : connectColors,
+      width: MediaQuery.of(context).size.width * 0.5,  // 50% del ancho de pantalla
+      height: 52.0,
+      fontSize: 16.0,
+    );
+  }
+
   
   /// Construye el indicador del perfil activo
   Widget _buildActiveProfileIndicator(AppState appState) {
     final profileName = appState.activeProfile?.name ?? '';
     
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Indicador de perfil activo
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.green.withAlpha(25),
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: Colors.green.withAlpha(120)),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.green.withAlpha(25),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.green.withAlpha(120)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.check_circle,
+            color: Colors.green,
+            size: 22,
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.check_circle,
-                color: Colors.green,
-                size: 22,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Perfil activo: $profileName',
-                style: const TextStyle(
-                  color: Colors.green,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-        ),
-        
-        // Indicador de dispositivo conectado (si existe)
-        if (appState.isConnected && appState.connectedDeviceName != null) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.blue.withAlpha(25),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.blue.withAlpha(120)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.bluetooth_connected,
-                  color: Colors.blue,
-                  size: 22,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Conectado a: ${appState.connectedDeviceName}',
-                  style: const TextStyle(
-                    color: Colors.blue,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18, color: Colors.blue),
-                  onPressed: () {
-                    appState.disconnectFromDevice();
-                  },
-                  tooltip: 'Desconectar',
-                  padding: const EdgeInsets.all(4),
-                  constraints: const BoxConstraints(),
-                  splashRadius: 20,
-                ),
-              ],
+          const SizedBox(width: 8),
+          Text(
+            'Perfil activo: $profileName',
+            style: const TextStyle(
+              color: Colors.green,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
             ),
           ),
         ],
-      ],
+      ),
     );
   }
-} 
+  
+  /// Navega a la pantalla de control
+  void _navigateToControlScreen(BuildContext context) {
+    final logger = LoggerConfig.logger;
+    logger.d('HomeScreenContent: Navegando a pantalla de control');
+    Navigator.pushNamed(context, AppConstants.controlRoute);
+  }
+}
