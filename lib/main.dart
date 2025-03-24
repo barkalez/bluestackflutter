@@ -12,6 +12,7 @@ import 'presentation/screens/profile_detail_screen.dart';
 import 'presentation/screens/bluetooth_scan_screen.dart';
 import 'presentation/screens/control_home_screen.dart';
 import 'state/app_state.dart';
+import 'state/bluetooth_provider.dart';
 
 final Logger logger = LoggerConfig.logger;
 
@@ -26,8 +27,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => AppState(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AppState()),
+        ChangeNotifierProvider(create: (_) => BluetoothProvider()),
+      ],
       child: MaterialApp(
         title: AppConstants.appName,
         debugShowCheckedModeBanner: false,

@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
 
 import '../../core/logger_config.dart';
 import '../../core/constants.dart';
-import '../../state/app_state.dart';
+import '../../state/bluetooth_provider.dart';
 import '../widgets/common/custom_app_bar.dart';
 
 /// Pantalla principal de control cuando el dispositivo está conectado
@@ -25,14 +22,6 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
   static const _className = 'ControlHomeScreen';
   final _logger = LoggerConfig.logger;
   
-  BluetoothConnection? _connection;
-  bool _isConnected = false;
-  String _statusMessage = 'Esperando datos...';
-  StreamSubscription<Uint8List>? _dataSubscription;
-  
-  // Stream transformado para permitir múltiples listeners
-  Stream<Uint8List>? _inputStream;
-  
   // Controlador para enviar comandos
   final TextEditingController _commandController = TextEditingController();
   
@@ -43,25 +32,18 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
   void initState() {
     super.initState();
     _logger.d('$_className: Inicializando pantalla de control');
-    _initializeConnection();
+    
+    // Configurar el listener de datos después de que el widget esté construido
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _setupDataListener();
+      }
+    });
   }
   
   @override
   void dispose() {
     _logger.d('$_className: Liberando recursos');
-    
-    // Cancelar suscripción a datos
-    if (_dataSubscription != null) {
-      _dataSubscription!.cancel();
-      _dataSubscription = null;
-      _logger.d('$_className: Suscripción de datos cancelada en dispose');
-    }
-    
-    // Limpiar referencia al stream
-    _inputStream = null;
-    
-    // No cerramos la conexión aquí para permitir que persista si se usa en otra pantalla
-    // (la gestión de la conexión se hace a través de AppState)
     
     // Liberar controlador de texto
     _commandController.dispose();
@@ -70,113 +52,21 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
     super.dispose();
   }
   
-  /// Inicializa la conexión Bluetooth
-  void _initializeConnection() {
-    _logger.d('$_className: Inicializando conexión Bluetooth');
-    
-    try {
-      final appState = Provider.of<AppState>(context, listen: false);
-      
-      if (!appState.isConnected) {
-        _logger.w('$_className: No hay dispositivo conectado');
-        setState(() {
-          _statusMessage = 'No hay dispositivo conectado';
-          _isConnected = false;
-        });
-        return;
-      }
-      
-      _connection = appState.connection;
-      
-      if (_connection != null && _connection!.isConnected) {
-        _logger.d('$_className: Conexión Bluetooth existente encontrada');
-        
-        // Configurar el stream de entrada
-        _setupInputStream();
-        
-        setState(() {
-          _isConnected = true;
-          _statusMessage = 'Conectado a ${appState.connectedDeviceName}';
-        });
-        
-        // Configurar la escucha de datos recibidos después de configurar el stream
-        _setupDataListener();
-      } else {
-        _logger.w('$_className: La conexión no está activa');
-        setState(() {
-          _statusMessage = 'La conexión no está activa';
-          _isConnected = false;
-        });
-      }
-    } catch (e) {
-      _logger.e('$_className: Error al inicializar conexión: $e');
-      setState(() {
-        _statusMessage = 'Error al inicializar conexión: $e';
-        _isConnected = false;
-      });
-    }
-  }
-  
-  /// Configura el stream de entrada para permitir múltiples listeners
-  void _setupInputStream() {
-    _logger.d('$_className: Configurando stream de entrada');
-    
-    try {
-      if (_connection == null || _connection!.input == null) {
-        _logger.w('$_className: No hay conexión o stream de entrada disponible');
-        return;
-      }
-      
-      // Cancelar suscripción anterior si existe antes de crear un nuevo stream
-      if (_dataSubscription != null) {
-        _dataSubscription!.cancel();
-        _dataSubscription = null;
-        _logger.d('$_className: Suscripción anterior cancelada antes de crear nuevo stream');
-      }
-      
-      // Crear un nuevo broadcast stream solo si no existe
-      if (_inputStream == null) {
-        _inputStream = _connection!.input!.asBroadcastStream();
-        _logger.d('$_className: Stream de entrada configurado como broadcast');
-      }
-    } catch (e) {
-      _logger.e('$_className: Error al configurar stream de entrada: $e');
-    }
-  }
-  
-  /// Configura un listener para los datos recibidos
+  /// Configura un listener para los datos recibidos desde el BluetoothProvider
   void _setupDataListener() {
     _logger.d('$_className: Configurando listener para datos');
     
-    // Cancelar suscripción anterior si existe
-    if (_dataSubscription != null) {
-      _dataSubscription!.cancel();
-      _dataSubscription = null;
-      _logger.d('$_className: Suscripción anterior cancelada');
-    }
-    
     try {
-      // Verificar si el inputStream está disponible
-      if (_inputStream == null) {
-        _logger.w('$_className: No hay stream de entrada disponible. Configurando stream primero.');
-        _setupInputStream();
-        
-        if (_inputStream == null) {
-          _logger.e('$_className: No se pudo configurar el stream de entrada');
-          return;
-        }
-      }
+      final bluetoothProvider = Provider.of<BluetoothProvider>(context, listen: false);
       
-      // Suscribirse al stream (ahora broadcast)
-      _dataSubscription = _inputStream!.listen(
-        (Uint8List data) {
-          // Decodificar datos recibidos
-          String dataString = utf8.decode(data, allowMalformed: true);
-          _logger.d('$_className: Datos recibidos: $dataString');
+      // Suscribirse al stream de datos
+      bluetoothProvider.dataStream.listen(
+        (String data) {
+          _logger.d('$_className: Datos recibidos: $data');
           
           if (mounted) {
             setState(() {
-              _receivedData.add(dataString);
+              _receivedData.add(data);
               // Limitar el tamaño del buffer
               if (_receivedData.length > 100) {
                 _receivedData.removeAt(0);
@@ -187,19 +77,12 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
         onError: (error) {
           _logger.e('$_className: Error al recibir datos: $error');
           if (mounted) {
-            setState(() {
-              _statusMessage = 'Error en la conexión: $error';
-              _isConnected = false;
-            });
-          }
-        },
-        onDone: () {
-          _logger.w('$_className: Conexión cerrada remotamente');
-          if (mounted) {
-            setState(() {
-              _statusMessage = 'Conexión cerrada por el dispositivo remoto';
-              _isConnected = false;
-            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error en la conexión: $error'),
+                backgroundColor: Colors.red,
+              ),
+            );
           }
         },
       );
@@ -208,55 +91,31 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
     } catch (e) {
       _logger.e('$_className: Error al configurar listener: $e');
       if (mounted) {
-        setState(() {
-          _statusMessage = 'Error al monitorear datos: $e';
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al monitorear datos: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
   
   /// Envía un comando al dispositivo Bluetooth
   Future<void> _sendCommand(String command) async {
-    if (!_isConnected || _connection == null) {
-      _logger.w('$_className: No hay conexión activa para enviar comandos');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No hay conexión activa'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
-    
     if (command.isEmpty) {
       return;
     }
     
     try {
-      _logger.d('$_className: Enviando comando: $command');
+      final bluetoothProvider = Provider.of<BluetoothProvider>(context, listen: false);
       
-      // Asegurar que el comando termine con retorno de carro y nueva línea para HC-05
-      if (!command.endsWith('\r\n')) {
-        command = '$command\r\n';
-      }
-      
-      // Convertir a bytes y enviar
-      Uint8List data = Uint8List.fromList(utf8.encode(command));
-      
-      // Verificar que la conexión sigue activa
-      if (!_connection!.isConnected) {
-        _logger.e('$_className: Conexión no activa al intentar enviar datos');
+      if (!bluetoothProvider.isConnected) {
+        _logger.w('$_className: No hay conexión activa para enviar comandos');
         if (mounted) {
-          setState(() {
-            _isConnected = false;
-            _statusMessage = 'Conexión perdida';
-          });
-          
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Conexión perdida. No se pueden enviar datos.'),
+              content: Text('No hay conexión activa'),
               backgroundColor: Colors.red,
             ),
           );
@@ -264,20 +123,33 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
         return;
       }
       
-      // Enviar los datos
-      _connection!.output.add(data);
-      await _connection!.output.allSent;
+      _logger.d('$_className: Enviando comando: $command');
       
-      _logger.d('$_className: Comando enviado correctamente');
+      // Enviar el comando a través del provider
+      bool success = await bluetoothProvider.sendCommand(command);
       
-      // Limpiar el campo de texto
-      _commandController.clear();
-      
-      // Registrar el comando enviado en la lista de datos
-      if (mounted) {
-        setState(() {
-          _receivedData.add('>> $command');
-        });
+      if (success) {
+        _logger.d('$_className: Comando enviado correctamente');
+        
+        // Limpiar el campo de texto
+        _commandController.clear();
+        
+        // Registrar el comando enviado en la lista de datos
+        if (mounted) {
+          setState(() {
+            _receivedData.add('>> $command');
+          });
+        }
+      } else {
+        _logger.e('$_className: Error al enviar comando');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error al enviar el comando'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       _logger.e('$_className: Error al enviar comando: $e');
@@ -289,16 +161,6 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
             backgroundColor: Colors.red,
           ),
         );
-        
-        // Actualizar estado si la conexión se perdió
-        if (e.toString().contains('closed') || 
-            e.toString().contains('disconnected') ||
-            e.toString().contains('not connected')) {
-          setState(() {
-            _isConnected = false;
-            _statusMessage = 'Conexión cerrada';
-          });
-        }
       }
     }
   }
@@ -308,52 +170,13 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
     _logger.d('$_className: Iniciando desconexión del dispositivo');
     
     try {
-      // Cancelar la suscripción de datos
-      if (_dataSubscription != null) {
-        await _dataSubscription!.cancel();
-        _dataSubscription = null;
-        _logger.d('$_className: Suscripción de datos cancelada');
-      }
+      final bluetoothProvider = Provider.of<BluetoothProvider>(context, listen: false);
       
-      // Limpiar referencia al stream de entrada
-      _inputStream = null;
-      _logger.d('$_className: Referencia al stream de entrada limpiada');
-      
-      // Cerrar conexión
-      if (_connection != null) {
-        try {
-          if (_connection!.isConnected) {
-            await _connection!.finish();  // Más seguro que close() para liberar recursos
-            _logger.d('$_className: Conexión cerrada correctamente');
-          } else {
-            _logger.d('$_className: La conexión ya estaba cerrada');
-          }
-        } catch (closeError) {
-          _logger.e('$_className: Error al cerrar la conexión: $closeError');
-          // Continuar con la desconexión incluso si hay un error al cerrar
-        }
-        _connection = null;
-      }
-      
-      // Actualizar el estado global de la aplicación
-      if (mounted) {
-        try {
-          final appState = Provider.of<AppState>(context, listen: false);
-          appState.disconnectFromDevice();
-          _logger.d('$_className: Estado global de la aplicación actualizado');
-        } catch (stateError) {
-          _logger.e('$_className: Error al actualizar estado global: $stateError');
-        }
-      }
+      // Desconectar utilizando el provider
+      await bluetoothProvider.disconnectDevice();
       
       // Actualizar el estado local
       if (mounted) {
-        setState(() {
-          _isConnected = false;
-          _statusMessage = 'Desconectado';
-        });
-        
-        // Mostrar mensaje al usuario
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Desconectado del dispositivo'),
@@ -384,6 +207,8 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
   
   @override
   Widget build(BuildContext context) {
+    final bluetoothProvider = Provider.of<BluetoothProvider>(context);
+    
     return Scaffold(
       appBar: CustomAppBar(
         title: 'Control HC-05',
@@ -395,26 +220,29 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
           ),
         ],
       ),
-      body: _buildBody(),
+      body: _buildBody(bluetoothProvider),
     );
   }
   
   /// Construye el cuerpo principal de la pantalla
-  Widget _buildBody() {
+  Widget _buildBody(BluetoothProvider bluetoothProvider) {
     return Column(
       children: [
-        _buildStatusBar(),
+        _buildStatusBar(bluetoothProvider),
         Expanded(
           child: _buildDataView(),
         ),
-        _buildCommandInput(),
+        _buildCommandInput(bluetoothProvider),
       ],
     );
   }
   
   /// Construye la barra de estado de conexión
-  Widget _buildStatusBar() {
-    Color statusColor = _isConnected ? Colors.green : Colors.red;
+  Widget _buildStatusBar(BluetoothProvider bluetoothProvider) {
+    Color statusColor = bluetoothProvider.isConnected ? Colors.green : Colors.red;
+    String statusMessage = bluetoothProvider.isConnected 
+        ? 'Conectado a ${bluetoothProvider.connectedDeviceName ?? "dispositivo"}'
+        : 'Sin conexión';
     
     return Container(
       padding: const EdgeInsets.all(8.0),
@@ -422,13 +250,13 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
       child: Row(
         children: [
           Icon(
-            _isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
+            bluetoothProvider.isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
             color: statusColor,
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              _statusMessage,
+              statusMessage,
               style: TextStyle(
                 color: statusColor,
                 fontWeight: FontWeight.bold,
@@ -476,7 +304,7 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
   }
   
   /// Construye el campo para enviar comandos
-  Widget _buildCommandInput() {
+  Widget _buildCommandInput(BluetoothProvider bluetoothProvider) {
     return Container(
       padding: const EdgeInsets.all(8.0),
       decoration: BoxDecoration(
@@ -493,13 +321,13 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
                 hintText: 'Escribe un comando...',
                 border: OutlineInputBorder(),
               ),
-              enabled: _isConnected,
+              enabled: bluetoothProvider.isConnected,
               onSubmitted: _sendCommand,
             ),
           ),
           const SizedBox(width: 8),
           ElevatedButton(
-            onPressed: _isConnected
+            onPressed: bluetoothProvider.isConnected
                 ? () => _sendCommand(_commandController.text)
                 : null,
             child: const Text('Enviar'),
