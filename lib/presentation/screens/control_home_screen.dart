@@ -5,6 +5,8 @@ import 'dart:async';
 import '../../core/logger_config.dart';
 import '../../core/constants.dart';
 import '../../state/bluetooth_provider.dart';
+import '../../state/app_state.dart';
+import '../widgets/common/buttons/gradient_button.dart';
 
 /// Pantalla principal de control cuando el dispositivo está conectado
 class ControlHomeScreen extends StatefulWidget {
@@ -24,6 +26,11 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
   // Buffer para almacenar datos recibidos
   final List<String> _receivedData = [];
   
+  // Valor actual del slider
+  double _sliderValue = 0.0;
+  // Valor máximo para el slider (basado en el perfil activo)
+  double _maxSliderValue = 400.0; // Valor por defecto
+  
   @override
   void initState() {
     super.initState();
@@ -33,6 +40,7 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _setupDataListener();
+        _initializeSliderValues();
       }
     });
   }
@@ -86,6 +94,66 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al monitorear datos: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+  
+  /// Inicializa los valores del slider basado en el perfil activo
+  void _initializeSliderValues() {
+    final appState = Provider.of<AppState>(context, listen: false);
+    if (appState.hasActiveProfile && appState.activeProfile != null) {
+      setState(() {
+        // Usar el total de grupos de pasos del perfil como valor máximo del slider
+        _maxSliderValue = appState.activeProfile!.totalStepGroups.toDouble();
+        _logger.d('$_className: Valor máximo del slider configurado a: $_maxSliderValue');
+      });
+    } else {
+      _logger.w('$_className: No hay perfil activo, usando valor predeterminado para el slider');
+    }
+  }
+  
+  /// Envía un comando de movimiento a una posición específica
+  void _moveToPosition(double position) async {
+    final bluetoothProvider = Provider.of<BluetoothProvider>(context, listen: false);
+    
+    if (!bluetoothProvider.isConnected) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No hay conexión Bluetooth activa'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+    
+    final int positionValue = position.round();
+    _logger.d('$_className: Enviando comando de movimiento a posición: $positionValue');
+    
+    // Comando G1 para movimiento a posición absoluta
+    String command = 'G1 X$positionValue\n';
+    
+    bool success = await bluetoothProvider.sendCommand(command);
+    
+    if (success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Moviendo a posición: $positionValue'),
+            backgroundColor: Colors.green,
+            duration: const Duration(milliseconds: 500),
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al enviar comando de movimiento'),
             backgroundColor: Colors.red,
           ),
         );
@@ -177,6 +245,7 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final bluetoothProvider = Provider.of<BluetoothProvider>(context);
+    Provider.of<AppState>(context);
     
     return Scaffold(
       appBar: AppBar(
@@ -207,7 +276,20 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
           _buildBluetoothButton(bluetoothProvider),
         ],
       ),
-      body: _buildDataView(),
+      body: Column(
+        children: [
+          // Botones de acción
+          _buildActionButtons(bluetoothProvider),
+          
+          // Control de posición con slider
+          _buildPositionSlider(bluetoothProvider),
+          
+          // Vista de datos
+          Expanded(
+            child: _buildDataView(),
+          ),
+        ],
+      ),
     );
   }
   
@@ -259,13 +341,7 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
   Widget _buildDataView() {
     if (_receivedData.isEmpty) {
       return const Center(
-        child: Text(
-          'Panel de control Bluestack',
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.grey,
-          ),
-        ),
+        child: SizedBox.shrink(),
       );
     }
     
@@ -286,6 +362,221 @@ class _ControlHomeScreenState extends State<ControlHomeScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+  
+  /// Construye los botones de acción para interactuar con el dispositivo
+  Widget _buildActionButtons(BluetoothProvider bluetoothProvider) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Botón de Control Manual
+          GradientButton(
+            text: 'Control Manual',
+            icon: Icons.pan_tool,
+            onPressed: () => _navigateToManualControl(),
+            width: null, // Ancho ajustado al contenido
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Botón de Configurar Apilado
+          GradientButton(
+            text: 'Configurar Apilado',
+            icon: Icons.layers,
+            onPressed: () => _navigateToStackConfig(),
+            width: null, // Ancho ajustado al contenido
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Botón de Homing
+          GradientButton(
+            text: 'Homing',
+            icon: Icons.home_work,
+            onPressed: () => _sendHomingCommand(bluetoothProvider),
+            width: null, // Ancho ajustado al contenido
+          ),
+        ],
+      ),
+    );
+  }
+  
+  /// Envía el comando de homing G28 al dispositivo
+  void _sendHomingCommand(BluetoothProvider bluetoothProvider) async {
+    if (!bluetoothProvider.isConnected) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No hay conexión Bluetooth activa'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+    
+    _logger.d('$_className: Enviando comando de homing G28');
+    
+    // Enviar comando G28 con nueva línea
+    bool success = await bluetoothProvider.sendCommand('G28\n');
+    
+    if (success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ejecutando homing...'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al enviar comando de homing'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+  
+  /// Navega a la pantalla de control manual
+  void _navigateToManualControl() {
+    _logger.d('$_className: Navegando a la pantalla de control manual');
+    Navigator.pushNamed(context, AppConstants.manualControlRoute);
+  }
+  
+  /// Navega a la pantalla de configuración de apilado
+  void _navigateToStackConfig() {
+    _logger.d('$_className: Navegando a la pantalla de configuración de apilado');
+    Navigator.pushNamed(context, AppConstants.stackConfigRoute);
+  }
+  
+  /// Construye el control deslizante de posición
+  Widget _buildPositionSlider(BluetoothProvider bluetoothProvider) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Posición:',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '${_sliderValue.round()}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Text('0'),
+                Expanded(
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: Colors.blue,
+                      inactiveTrackColor: Colors.blue.withAlpha(50),
+                      trackShape: const RoundedRectSliderTrackShape(),
+                      trackHeight: 4.0,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12.0),
+                      thumbColor: Colors.blueAccent,
+                      overlayColor: Colors.blue.withAlpha(32),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 28.0),
+                      tickMarkShape: const RoundSliderTickMarkShape(),
+                      activeTickMarkColor: Colors.blue,
+                      inactiveTickMarkColor: Colors.blue.withAlpha(70),
+                      valueIndicatorShape: const PaddleSliderValueIndicatorShape(),
+                      valueIndicatorColor: Colors.blueAccent,
+                      valueIndicatorTextStyle: const TextStyle(
+                        color: Colors.white,
+                      ),
+                    ),
+                    child: Slider(
+                      value: _sliderValue,
+                      min: 0,
+                      max: _maxSliderValue,
+                      divisions: _maxSliderValue.toInt(),
+                      label: '${_sliderValue.round()}',
+                      onChanged: (double value) {
+                        setState(() {
+                          _sliderValue = value;
+                        });
+                      },
+                      onChangeEnd: (double value) {
+                        // Enviar comando de movimiento cuando el usuario suelta el slider
+                        if (bluetoothProvider.isConnected) {
+                          _moveToPosition(_sliderValue);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                Text('${_maxSliderValue.round()}'),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // Botón de movimiento a posición 0
+                ElevatedButton.icon(
+                  onPressed: bluetoothProvider.isConnected 
+                    ? () {
+                        setState(() {
+                          _sliderValue = 0;
+                        });
+                        _moveToPosition(0);
+                      }
+                    : null,
+                  icon: const Icon(Icons.home, size: 18),
+                  label: const Text('Inicio'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+                
+                // Botón de movimiento a posición máxima
+                ElevatedButton.icon(
+                  onPressed: bluetoothProvider.isConnected 
+                    ? () {
+                        setState(() {
+                          _sliderValue = _maxSliderValue;
+                        });
+                        _moveToPosition(_maxSliderValue);
+                      }
+                    : null,
+                  icon: const Icon(Icons.arrow_forward, size: 18),
+                  label: const Text('Máximo'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

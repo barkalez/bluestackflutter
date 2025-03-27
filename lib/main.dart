@@ -11,6 +11,8 @@ import 'presentation/screens/list_profile_screen.dart';
 import 'presentation/screens/profile_detail_screen.dart';
 import 'presentation/screens/bluetooth_scan_screen.dart';
 import 'presentation/screens/control_home_screen.dart';
+import 'presentation/screens/control_manual_screen.dart';
+import 'presentation/screens/stack_conf_screen.dart';
 import 'state/app_state.dart';
 import 'state/bluetooth_provider.dart';
 
@@ -50,6 +52,8 @@ class MyApp extends StatelessWidget {
           ProfileDetailScreen.routeName: (context) => const ProfileDetailScreen(),
           BluetoothScanScreen.routeName: (context) => const BluetoothScanScreen(),
           AppConstants.controlRoute: (context) => const ControlHomeScreen(),
+          AppConstants.manualControlRoute: (context) => const ControlManualScreen(),
+          AppConstants.stackConfigRoute: (context) => const StackConfigScreen(),
         },
       ),
     );

@@ -15,6 +15,8 @@ class AppConstants {
   static const String connectRoute = '/connect';
   static const String profileDetailRoute = '/profile-detail';
   static const String controlRoute = '/control';
+  static const String manualControlRoute = '/manual-control';
+  static const String stackConfigRoute = '/stack-config';
   
   // Claves de almacenamiento
   static const String prefLastDevice = 'last_connected_device';

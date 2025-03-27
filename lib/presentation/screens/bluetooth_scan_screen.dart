@@ -40,111 +40,158 @@ class _BluetoothScanScreenState extends State<BluetoothScanScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final appState = Provider.of<AppState>(context);
     final bluetoothProvider = Provider.of<BluetoothProvider>(context);
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Conectar dispositivo Bluetooth'),
+        title: const Center(
+          child: Text(
+            'Bluestack',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color(0xFF2196F3),  // Azul primario
+                Color(0xFF0D47A1),  // Azul oscuro
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+        leading: _buildHomeButton(),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refrescar',
-            onPressed: () => bluetoothProvider.startScan(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.help_outline),
-            tooltip: 'Ayuda',
-            onPressed: () => _showHelpDialog(),
-          ),
+          _buildBluetoothButton(bluetoothProvider),
         ],
       ),
-      body: Column(
-        children: [
-          // Indicador de estado
-          _buildStatusIndicator(bluetoothProvider),
-          
-          // Sección de dispositivos recientes
-          if (appState.recentDevices.isNotEmpty) 
-            _buildRecentDevicesSection(appState, bluetoothProvider),
-          
-          // Lista de dispositivos encontrados
-          Expanded(
-            child: _buildDeviceList(bluetoothProvider),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: bluetoothProvider.isScanning 
-            ? bluetoothProvider.stopScan 
-            : bluetoothProvider.startScan,
-        tooltip: bluetoothProvider.isScanning 
-            ? 'Detener escaneo' 
-            : 'Iniciar escaneo',
-        child: Icon(bluetoothProvider.isScanning 
-            ? Icons.stop 
-            : Icons.bluetooth_searching),
+      body: _buildDeviceList(bluetoothProvider),
+    );
+  }
+  
+  /// Construye el botón de Bluetooth
+  Widget _buildBluetoothButton(BluetoothProvider bluetoothProvider) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: bluetoothProvider.isConnected ? Colors.green : Colors.orange,
+          shape: BoxShape.circle,
+        ),
+        child: IconButton(
+          icon: const Icon(Icons.bluetooth, color: Colors.white),
+          tooltip: bluetoothProvider.isConnected ? 'Desconectar' : 'Conectar',
+          padding: EdgeInsets.zero,
+          iconSize: 20,
+          onPressed: _toggleBluetoothConnection,
+        ),
       ),
     );
   }
   
-  /// Construye el indicador de estado de la búsqueda
-  Widget _buildStatusIndicator(BluetoothProvider bluetoothProvider) {
-    final hasBlueStackDevice = bluetoothProvider.discoveredDevices.isNotEmpty;
-    
-    String statusText;
-    Color? statusColor;
-    
-    if (bluetoothProvider.isScanning) {
-      statusText = 'Buscando módulos BlueStack/HC-05...';
-      statusColor = Colors.blue;
-    } else if (bluetoothProvider.discoveredDevices.isEmpty) {
-      statusText = 'No se encontraron módulos BlueStack/HC-05';
-      statusColor = null;
-    } else if (hasBlueStackDevice) {
-      statusText = 'Módulo BlueStack/HC-05 encontrado';
-      statusColor = Colors.green;
-    } else {
-      statusText = 'No se encontraron módulos compatibles';
-      statusColor = Colors.orange;
-    }
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      color: bluetoothProvider.isScanning ? Colors.blue.withAlpha(25) : Colors.transparent,
-      child: Row(
-        children: [
-          bluetoothProvider.isScanning
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Icon(
-                  hasBlueStackDevice 
-                      ? Icons.bluetooth_connected 
-                      : (bluetoothProvider.discoveredDevices.isEmpty 
-                          ? Icons.bluetooth_disabled 
-                          : Icons.bluetooth_searching),
-                  color: hasBlueStackDevice 
-                      ? Colors.green 
-                      : (bluetoothProvider.discoveredDevices.isEmpty 
-                          ? Colors.grey 
-                          : Colors.orange),
-                ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              statusText,
-              style: TextStyle(
-                color: statusColor,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
+  /// Construye el botón de inicio
+  Widget _buildHomeButton() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: const BoxDecoration(
+          color: Colors.lightBlue,
+          shape: BoxShape.circle,
+        ),
+        child: IconButton(
+          icon: const Icon(Icons.home, color: Colors.white),
+          tooltip: 'Ir a inicio',
+          padding: EdgeInsets.zero,
+          iconSize: 20,
+          onPressed: _navigateToHome,
+        ),
       ),
     );
+  }
+  
+  /// Maneja la conexión/desconexión real del Bluetooth
+  Future<void> _toggleBluetoothConnection() async {
+    final bluetoothProvider = Provider.of<BluetoothProvider>(context, listen: false);
+    
+    if (bluetoothProvider.isConnected) {
+      // Si está conectado, desconectar realmente
+      _logger.d('$_className: Desconectando dispositivo Bluetooth');
+      await bluetoothProvider.disconnectDevice();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Bluetooth desconectado'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    } else if (bluetoothProvider.connectedDeviceAddress != null) {
+      // Si está desconectado pero tenemos la dirección del último dispositivo, reconectar
+      _logger.d('$_className: Intentando reconectar al último dispositivo');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Intentando reconectar...'),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+      
+      // Intentar reconectar al último dispositivo
+      try {
+        final reconnected = await bluetoothProvider.reconnectLastDevice();
+        
+        if (mounted) {
+          if (reconnected) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Reconectado exitosamente'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 1),
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No se pudo reconectar. Intente desde la pantalla de escaneo.'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        _logger.e('$_className: Error al reconectar: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+  
+  /// Navega a la pantalla de inicio
+  void _navigateToHome() {
+    _logger.d('$_className: Navegando a la pantalla de inicio');
+    Navigator.pushReplacementNamed(context, AppConstants.homeRoute);
   }
   
   /// Construye la lista de dispositivos encontrados
@@ -160,20 +207,6 @@ class _BluetoothScanScreenState extends State<BluetoothScanScreen> {
                     height: 50,
                     child: CircularProgressIndicator(),
                   ),
-                  SizedBox(height: 24),
-                  Text(
-                    'Buscando módulos BlueStack/HC-05...',
-                    style: TextStyle(fontSize: 18),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Asegúrate de que el módulo esté encendido y visible',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                    ),
-                  ),
                 ],
               )
             : Column(
@@ -185,10 +218,6 @@ class _BluetoothScanScreenState extends State<BluetoothScanScreen> {
                     color: Colors.grey[400],
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'No se encontraron módulos BlueStack/HC-05',
-                    style: TextStyle(fontSize: 18),
-                  ),
                   const SizedBox(height: 8),
                   const Text(
                     'Asegúrate de que el módulo esté encendido\ny en modo de emparejamiento (LED parpadeando)',
@@ -206,6 +235,26 @@ class _BluetoothScanScreenState extends State<BluetoothScanScreen> {
                       fontSize: 14,
                       fontStyle: FontStyle.italic,
                       color: Colors.blue,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Icono grande de refrescar
+                  InkWell(
+                    onTap: () {
+                      final bluetoothProvider = Provider.of<BluetoothProvider>(context, listen: false);
+                      bluetoothProvider.startScan();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[100],
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.refresh,
+                        size: 60,
+                        color: Colors.blue,
+                      ),
                     ),
                   ),
                 ],
@@ -227,83 +276,6 @@ class _BluetoothScanScreenState extends State<BluetoothScanScreen> {
     );
   }
   
-  /// Construye la sección de dispositivos recientes
-  Widget _buildRecentDevicesSection(AppState appState, BluetoothProvider bluetoothProvider) {
-    final recentDevices = appState.getRecentDevicesInfo();
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              const Text(
-                'Dispositivos recientes',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: () {
-                  appState.clearRecentDevices();
-                },
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: const Size(0, 36),
-                ),
-                child: const Text('Limpiar'),
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: recentDevices.length,
-          itemBuilder: (context, index) {
-            final device = recentDevices[index];
-            return ListTile(
-              leading: const Icon(Icons.history, color: Colors.grey),
-              title: Text(device['name'] ?? 'Dispositivo desconocido'),
-              subtitle: Text(device['address'] ?? ''),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.settings_bluetooth, color: Colors.blue),
-                    onPressed: () => bluetoothProvider.openBluetoothSettings(),
-                    tooltip: 'Emparejar',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.bluetooth, color: Colors.blue),
-                    onPressed: () => _connectToRecentDevice(device),
-                    tooltip: 'Conectar',
-                  ),
-                ],
-              ),
-              onTap: () => _connectToRecentDevice(device),
-            );
-          },
-        ),
-        const Divider(height: 1),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Text(
-            'Dispositivos encontrados',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-  
   /// Conecta a un dispositivo Bluetooth
   void _connectToDevice(BluetoothDevice device) async {
     _logger.d('$_className: Solicitando conexión a ${device.name}');
@@ -316,12 +288,6 @@ class _BluetoothScanScreenState extends State<BluetoothScanScreen> {
     
     if (connection != null && mounted) {
       _logger.d('$_className: Conexión establecida con ${device.name}');
-      
-      // Guardar dispositivo en recientes
-      appState.addRecentDevice(
-        device.name ?? 'Dispositivo desconocido', 
-        device.address
-      );
       
       // Guardar la conexión en AppState
       appState.setConnectedDevice(device, connection);
@@ -357,17 +323,6 @@ class _BluetoothScanScreenState extends State<BluetoothScanScreen> {
         ),
       );
     }
-  }
-  
-  /// Conecta a un dispositivo reciente
-  void _connectToRecentDevice(Map<String, String?> device) {
-    _logger.d('$_className: Intentando conectar a dispositivo reciente: ${device['name']}');
-    // Crear un BluetoothDevice a partir de la información guardada
-    final bluetoothDevice = BluetoothDevice(
-      name: device['name'],
-      address: device['address'] ?? '',
-    );
-    _connectToDevice(bluetoothDevice);
   }
   
   /// Muestra instrucciones para reiniciar un módulo HC-05
@@ -421,69 +376,4 @@ class _BluetoothScanScreenState extends State<BluetoothScanScreen> {
     );
   }
 
-  /// Muestra un diálogo de ayuda con información sobre el HC-05
-  void _showHelpDialog() {
-    if (!mounted) return;
-    
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Guía para conectar HC-05'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Text(
-                'Preparación del módulo HC-05:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text('1. Asegúrese de que el módulo HC-05 esté correctamente alimentado.'),
-              Text('2. El LED del módulo debe parpadear (aproximadamente cada 2 segundos).'),
-              Text('3. Si el LED está encendido constantemente, el módulo ya está emparejado con otro dispositivo.'),
-              SizedBox(height: 16),
-              Text(
-                'Emparejamiento:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text('1. El HC-05 debe aparecer en la lista de dispositivos escaneados.'),
-              Text('2. Si no aparece, intente apagar y encender el módulo.'),
-              Text('3. Al seleccionar el dispositivo, se le pedirá emparejarlo.'),
-              Text('4. El PIN típico para HC-05 es 1234 o 0000.'),
-              SizedBox(height: 16),
-              Text(
-                'Encontrar la dirección MAC:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text('1. Vaya a la configuración Bluetooth de su dispositivo.'),
-              Text('2. Busque el dispositivo HC-05 en la lista de dispositivos emparejados.'),
-              Text('3. En la mayoría de los dispositivos Android, puede ver la dirección MAC presionando sobre el nombre del dispositivo y seleccionando "Información del dispositivo" o "Propiedades".'),
-              Text('4. La dirección MAC tiene el formato XX:XX:XX:XX:XX:XX.'),
-              SizedBox(height: 16),
-              Text(
-                'Resolución de problemas:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text('• Si no puede ver el HC-05, reinicie el módulo.'),
-              Text('• Si falla la conexión, verifique que el módulo esté en modo comunicación (LED parpadeando).'),
-              Text('• Asegúrese de tener habilitados los permisos de ubicación y Bluetooth.'),
-              Text('• Si persisten los problemas, puede ser necesario reiniciar el adaptador Bluetooth de su dispositivo.'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-            },
-            child: const Text('Entendido'),
-          ),
-        ],
-      ),
-    );
-  }
 } 
