@@ -102,6 +102,38 @@ class _ProfileFormState extends State<ProfileForm> {
                 FormBuilderValidators.min(1, errorText: 'El valor debe ser mayor o igual a 1'),
               ]),
             ),
+            const SizedBox(height: 16),
+            FormBuilderDropdown<int>(
+              name: 'motorSpeed',
+              decoration: const InputDecoration(
+                labelText: 'Velocidad del motor',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.speed),
+              ),
+              items: const [
+                DropdownMenuItem(value: 1600, child: Text('1600 pasos/s')),
+                DropdownMenuItem(value: 3200, child: Text('3200 pasos/s')),
+                DropdownMenuItem(value: 6400, child: Text('6400 pasos/s')),
+              ],
+              validator: FormBuilderValidators.required(errorText: 'Este campo es obligatorio'),
+            ),
+            const SizedBox(height: 16),
+            FormBuilderDropdown<int>(
+              name: 'motorAcceleration',
+              decoration: const InputDecoration(
+                labelText: 'Aceleración del motor',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.trending_up),
+              ),
+              items: const [
+                DropdownMenuItem(value: 400, child: Text('400 pasos/s²')),
+                DropdownMenuItem(value: 800, child: Text('800 pasos/s²')),
+                DropdownMenuItem(value: 1600, child: Text('1600 pasos/s²')),
+                DropdownMenuItem(value: 3200, child: Text('3200 pasos/s²')),
+                DropdownMenuItem(value: 6400, child: Text('6400 pasos/s²')),
+              ],
+              validator: FormBuilderValidators.required(errorText: 'Este campo es obligatorio'),
+            ),
             const SizedBox(height: 24),
             _buildSubmitButton(),
             if (_isSubmitting)
@@ -141,6 +173,8 @@ class _ProfileFormState extends State<ProfileForm> {
           distancePerRevolution: double.tryParse(formData['distancePerRevolution'].toString()) ?? 0,
           screwSensitivity: double.tryParse(formData['screwSensitivity'].toString()) ?? 0,
           maxDistance: double.tryParse(formData['maxDistance'].toString()) ?? 0,
+          motorSpeed: formData['motorSpeed'] as int,
+          motorAcceleration: formData['motorAcceleration'] as int,
         );
         
         final appState = Provider.of<AppState>(context, listen: false);

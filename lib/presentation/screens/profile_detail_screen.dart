@@ -130,6 +130,18 @@ class _ProfileDetailContent extends StatelessWidget {
                   '${profile.maxDistance} mm',
                   Icons.compare_arrows,
                 ),
+                const Divider(),
+                _buildParameterRow(
+                  'Velocidad del motor:',
+                  '${profile.motorSpeed} pasos/s',
+                  Icons.speed,
+                ),
+                const Divider(),
+                _buildParameterRow(
+                  'Aceleración del motor:',
+                  '${profile.motorAcceleration} pasos/s²',
+                  Icons.trending_up,
+                ),
               ],
             ),
           ),
@@ -210,6 +222,20 @@ class _ProfileDetailContent extends StatelessWidget {
                   Icons.calculate,
                   isCalculated: true,
                 ),
+                const Divider(),
+                _buildParameterRow(
+                  'Distancia máxima del motor:',
+                  '${(profile.maxMotorDistance * 1000).floor() / 1000} mm',
+                  Icons.compare_arrows,
+                  isCalculated: true,
+                ),
+                const Divider(),
+                _buildParameterRow(
+                  'Pasos totales:',
+                  profile.totalSteps.toString(),
+                  Icons.rotate_right,
+                  isCalculated: true,
+                ),
               ],
             ),
           ),
@@ -228,6 +254,7 @@ class _ProfileDetailContent extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
             icon,
@@ -236,20 +263,26 @@ class _ProfileDetailContent extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: isCalculated ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: isCalculated ? Colors.blue.shade700 : Colors.black87,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: isCalculated ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isCalculated ? Colors.blue.shade700 : Colors.black87,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

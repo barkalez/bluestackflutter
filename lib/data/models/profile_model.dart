@@ -19,6 +19,12 @@ class ProfileModel {
   /// Distancia máxima de recorrido en milímetros
   final double maxDistance;
 
+  /// Velocidad del motor (1600, 3200 o 6400)
+  final int motorSpeed;
+
+  /// Aceleración del motor (400, 800, 1600, 3200 o 6400)
+  final int motorAcceleration;
+
   /// Logger para depuración
   static final _logger = LoggerConfig.logger;
 
@@ -29,11 +35,15 @@ class ProfileModel {
     required this.distancePerRevolution,
     required this.screwSensitivity,
     required this.maxDistance,
+    required this.motorSpeed,
+    required this.motorAcceleration,
   }) : assert(name.isNotEmpty, 'El nombre no puede estar vacío'),
        assert(stepsPerRevolution > 0, 'Los pasos por revolución deben ser positivos'),
        assert(distancePerRevolution > 0, 'La distancia por revolución debe ser positiva'),
        assert(screwSensitivity >= 0, 'La sensibilidad del tornillo no puede ser negativa'),
-       assert(maxDistance > 0, 'La distancia máxima debe ser positiva');
+       assert(maxDistance > 0, 'La distancia máxima debe ser positiva'),
+       assert([1600, 3200, 6400].contains(motorSpeed), 'La velocidad del motor debe ser 1600, 3200 o 6400'),
+       assert([400, 800, 1600, 3200, 6400].contains(motorAcceleration), 'La aceleración del motor debe ser 400, 800, 1600, 3200 o 6400');
 
   /// Distancia recorrida por cada paso del motor (en milímetros)
   /// Calculado como: Distancia por revolución / Pasos por revolución
@@ -80,6 +90,18 @@ class ProfileModel {
     return rawValue.floor();
   }
 
+  /// Número total de pasos del motor
+  /// Calculado como: Total de grupos de pasos * Grupo de pasos
+  int get totalSteps {
+    return totalStepGroups * stepGroup;
+  }
+
+  /// Distancia máxima real del motor
+  /// Calculado como: Total de grupos de pasos * Distancia por grupo
+  double get maxMotorDistance {
+    return totalStepGroups * distPerStepGroup;
+  }
+
   /// Crea una copia del perfil con nuevos valores opcionales
   ProfileModel copyWith({
     String? name,
@@ -87,6 +109,8 @@ class ProfileModel {
     double? distancePerRevolution,
     double? screwSensitivity,
     double? maxDistance,
+    int? motorSpeed,
+    int? motorAcceleration,
   }) {
     return ProfileModel(
       name: name ?? this.name,
@@ -94,6 +118,8 @@ class ProfileModel {
       distancePerRevolution: distancePerRevolution ?? this.distancePerRevolution,
       screwSensitivity: screwSensitivity ?? this.screwSensitivity,
       maxDistance: maxDistance ?? this.maxDistance,
+      motorSpeed: motorSpeed ?? this.motorSpeed,
+      motorAcceleration: motorAcceleration ?? this.motorAcceleration,
     );
   }
 
@@ -106,6 +132,8 @@ class ProfileModel {
         distancePerRevolution: (json['distancePerRevolution'] as num).toDouble(),
         screwSensitivity: (json['screwSensitivity'] as num).toDouble(),
         maxDistance: (json['maxDistance'] as num).toDouble(),
+        motorSpeed: (json['motorSpeed'] as num).toInt(),
+        motorAcceleration: (json['motorAcceleration'] as num).toInt(),
       );
     } catch (e) {
       _logger.e('Error al convertir JSON a ProfileModel: $e');
@@ -121,6 +149,8 @@ class ProfileModel {
       'distancePerRevolution': distancePerRevolution,
       'screwSensitivity': screwSensitivity,
       'maxDistance': maxDistance,
+      'motorSpeed': motorSpeed,
+      'motorAcceleration': motorAcceleration,
     };
   }
 
@@ -148,7 +178,9 @@ class ProfileModel {
         other.stepsPerRevolution == stepsPerRevolution &&
         other.distancePerRevolution == distancePerRevolution &&
         other.screwSensitivity == screwSensitivity &&
-        other.maxDistance == maxDistance;
+        other.maxDistance == maxDistance &&
+        other.motorSpeed == motorSpeed &&
+        other.motorAcceleration == motorAcceleration;
   }
 
   /// Sobrescribe hashCode para consistencia con equals
@@ -158,7 +190,9 @@ class ProfileModel {
         stepsPerRevolution.hashCode ^
         distancePerRevolution.hashCode ^
         screwSensitivity.hashCode ^
-        maxDistance.hashCode;
+        maxDistance.hashCode ^
+        motorSpeed.hashCode ^
+        motorAcceleration.hashCode;
   }
   
   /// Sobrescribe toString para depuración más fácil
@@ -166,8 +200,9 @@ class ProfileModel {
   String toString() {
     return 'ProfileModel(name: $name, stepsPerRevolution: $stepsPerRevolution, '
         'distancePerRevolution: $distancePerRevolution, screwSensitivity: $screwSensitivity, '
-        'maxDistance: $maxDistance, distancePerStep: $distancePerStep, '
-        'stepGroup: $stepGroup, distPerStepGroup: $distPerStepGroup, '
-        'totalStepGroups: $totalStepGroups)';
+        'maxDistance: $maxDistance, motorSpeed: $motorSpeed, motorAcceleration: $motorAcceleration, '
+        'distancePerStep: $distancePerStep, stepGroup: $stepGroup, '
+        'distPerStepGroup: $distPerStepGroup, totalStepGroups: $totalStepGroups, '
+        'totalSteps: $totalSteps, maxMotorDistance: $maxMotorDistance)';
   }
 } 

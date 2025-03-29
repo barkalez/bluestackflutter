@@ -32,6 +32,10 @@ class AppState extends ChangeNotifier {
   List<Map<String, String?>> _recentDevices = []; // Dispositivos recientes
   BluetoothConnection? _activeConnection;
   
+  // Estado del slider
+  double _sliderValue = 0.0;
+  double _maxSliderValue = 400.0; // Valor por defecto
+  
   AppState() {
     _logger.d('$_className: Inicializado');
     _loadProfileNames();
@@ -50,6 +54,10 @@ class AppState extends ChangeNotifier {
   String? get connectedDeviceAddress => _connectedDeviceAddress;
   List<Map<String, String?>> get recentDevices => _recentDevices;
   BluetoothConnection? get connection => _activeConnection;
+  
+  // Getters para el estado del slider
+  double get sliderValue => _sliderValue;
+  double get maxSliderValue => _maxSliderValue;
   
   /// Carga los nombres de perfiles disponibles
   Future<void> _loadProfileNames() async {
@@ -284,5 +292,24 @@ class AppState extends ChangeNotifier {
     }
     
     notifyListeners();
+  }
+  
+  // Métodos para actualizar el estado del slider
+  void setSliderValue(double value) {
+    _sliderValue = value;
+    notifyListeners();
+  }
+  
+  void setMaxSliderValue(double value) {
+    _maxSliderValue = value;
+    notifyListeners();
+  }
+  
+  // Método para inicializar los valores del slider basado en el perfil activo
+  void initializeSliderValues() {
+    if (hasActiveProfile && activeProfile != null) {
+      _maxSliderValue = activeProfile!.totalStepGroups.toDouble();
+      notifyListeners();
+    }
   }
 } 
